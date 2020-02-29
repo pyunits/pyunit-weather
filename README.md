@@ -19,7 +19,8 @@ import pprint
 
 def test():
     weather = Weather()
-    w = weather.get_weather("贵阳")
+    w = weather.get_city_weather("贵阳")
+    # w = weather.get_county_weather("贵阳")
     pprint.pprint(w)
 
 
