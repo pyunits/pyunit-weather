@@ -26,7 +26,7 @@ class Weather:
         message = {}
         data = list(filter(lambda x: x[1] == city, self.city))
         if not data:
-            return '没有该城市的天气预报，请查看城市表'
+            return '没有该城市的天气预报，请查看城市表 https://github.com/PyUnit/pyunit-weather/blob/master/pyunit_weather/address.txt'
         else:
             data = data[0]
         u, code = data[3], data[2]
