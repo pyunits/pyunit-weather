@@ -3,23 +3,44 @@
 # @Time  : 2020/2/29 13:31
 # @Author: Jtyoui@qq.com
 """数据来自于 中央气象台 http://www.nmc.cn/publish/forecast/AGZ/guiyang.html"""
+
 from fake_useragent import UserAgent
 from bs4 import BeautifulSoup, Tag
 import requests
 import json
 import os
+import zipfile
+import re
+
+dirs = os.path.dirname(os.path.abspath(__file__))
+
+
+def load_zip(zip_name, file_name, encoding='UTF-8', sep='\n'):
+    """加载zip数据
+
+    :param zip_name: 压缩包的名字
+    :param file_name: 压缩包里面文件的名字
+    :param encoding: 文件的编码
+    :param sep: 压缩文件里面的换行符
+    :return: 压缩包里面的数据：默认编码的UTF-8
+    """
+    file_zip = os.path.join(dirs, zip_name)
+    f = zipfile.ZipFile(file_zip)
+    fp = f.read(file_name)
+    lines = fp.decode(encoding).split(sep)
+    return lines
 
 
 class Weather:
     def __init__(self):
         self.ua = UserAgent()
+        self.weather = load_zip('city.zip', 'city.txt')
         self.city = []
-        with open(os.path.dirname(__file__) + os.sep + 'address.txt', encoding='utf-8')as fp:
-            for line in fp:
-                self.city.append(line.strip().split())
+        for line in load_zip('address.zip', 'address.txt'):
+            self.city.append(line.split())
 
-    def get_weather(self, city):
-        """获取天气预报的信息
+    def get_city_weather(self, city):
+        """获取二级地址的天气预报
 
         :param city: 城市
         """
@@ -34,7 +55,9 @@ class Weather:
         text = self._get_html(url)
         soup = BeautifulSoup(text, 'html.parser')
         message['标题'] = soup.title.string  # 标题
-        message['城市'] = soup.find(name='div', class_='cname fl').text.strip()  # 城市
+        city_ = soup.find(name='h1', class_='navigation').text.strip()  # 城市
+        city_ = re.sub('当前位置：全国天气预报|\xa0|>|天气预报', '', city_)
+        message['城市'] = city_
         real_url = f'http://www.nmc.cn/f/rest/real/{code}'
         aqi_url = f'http://www.nmc.cn/f/rest/aqi/{code}'
         real_text = self._get_html(real_url) or '{}'
@@ -117,3 +140,23 @@ class Weather:
                 )
             prediction[f'第{index}天每3个小时预报'] = days
         return prediction
+
+    def get_county_weather(self, county):
+        """获取三级地址的天气预报"""
+        weather = {}
+        for names in self.weather:
+            code, city_ = names.split(',')
+            if city_ == county:
+                url = F'http://www.weather.com.cn/weather/{code}.shtml'
+                response = requests.get(url, headers={'User-Agent': self.ua.random})
+                response.encoding = response.apparent_encoding
+                text = response.text
+                soup = BeautifulSoup(text, 'html.parser')
+                ls, tittle = [], soup.find(name='div', class_='crumbs fl').text
+                weather[re.sub(r'[\s>]', '', tittle)] = ls
+                message = soup.find(name='ul', class_='t clearfix')
+                for i in message.contents:
+                    if isinstance(i, Tag):
+                        ls.append(i.text.strip().split())
+
+        return weather
